@@ -1,0 +1,53 @@
+# KleverTorrentHub — systemd service (backend)
+#
+# Install:
+#   sudo cp deploy/ktorrent-hub.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ktorrent-hub
+#
+# Logs:
+#   journalctl -u ktorrent-hub -f
+#
+# Adjust User, WorkingDirectory, and ExecStart to match your setup.
+
+[Unit]
+Description=KleverTorrentHub Backend
+Documentation=https://github.com/your-org/klever-torrent-hub
+After=network.target
+
+[Service]
+Type=simple
+
+# Run as a dedicated non-root user (create with: sudo useradd -r -s /bin/false ktorrent)
+User=ktorrent
+Group=ktorrent
+
+# Path where the repo is cloned
+WorkingDirectory=/var/www/ktorrent-hub/backend
+
+# Load environment variables from .env
+EnvironmentFile=/var/www/ktorrent-hub/backend/.env
+
+# Start the server (use the full path to node: which node)
+ExecStart=/usr/bin/node src/index.js
+
+# Restart automatically on crash, but not on clean exit
+Restart=on-failure
+RestartSec=5s
+
+# Give the process time to shut down gracefully
+TimeoutStopSec=15s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/ktorrent-hub/backend/data /var/www/ktorrent-hub/backend/uploads
+
+# Logging — view with: journalctl -u ktorrent-hub
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ktorrent-hub
+
+[Install]
+WantedBy=multi-user.target

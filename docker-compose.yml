@@ -1,0 +1,66 @@
+version: '3.9'
+
+# ============================================================
+# KleverTorrentHub - Docker Compose
+#
+# Default mode: SQLite (no external database needed)
+# Run:  docker compose up -d
+#
+# With PostgreSQL:
+#   Set DB_TYPE=postgres in backend/.env and uncomment the
+#   postgres service and the depends_on block below.
+# ============================================================
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - kth_data:/app/data       # SQLite database
+      - kth_uploads:/app/uploads # Uploaded .torrent files
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_APP_URL: ${VITE_APP_URL:-http://localhost}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Optional PostgreSQL ─────────────────────────────────
+  # Uncomment if you set DB_TYPE=postgres in backend/.env
+  #
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_DB:       kth
+  #     POSTGRES_USER:     kth_user
+  #     POSTGRES_PASSWORD: changeme
+  #   volumes:
+  #     - pg_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U kth_user"]
+  #     interval: 10s
+  #     retries: 5
+  #   restart: unless-stopped
+
+volumes:
+  kth_data:
+  kth_uploads:
+  # pg_data:

@@ -1,0 +1,259 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { Coins, Upload, Clock, TrendingUp, ExternalLink, Copy, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { getMe, getPendingRewards, claimRewards, getOnChainBalance, getSiteSettings, getMyPasskey } from '../lib/api';
+import { formatKth, shortenKlvAddress } from '../lib/klever';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { TorrentCard } from '../components/torrent/TorrentCard';
+import { useAuth } from '../hooks/useAuth';
+
+export default function Dashboard() {
+  const { isAuthed, walletAddress } = useAuth();
+  const qc = useQueryClient();
+
+  const { data: me, isLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn:  getMe,
+    enabled:  isAuthed,
+  });
+
+  const { data: pendingData } = useQuery({
+    queryKey: ['pendingRewards'],
+    queryFn:  getPendingRewards,
+    enabled:  isAuthed,
+    refetchInterval: 60_000,
+  });
+
+  const { data: balanceData } = useQuery({
+    queryKey: ['onChainBalance'],
+    queryFn:  getOnChainBalance,
+    enabled:  isAuthed,
+    staleTime: 120_000,
+  });
+
+  const { data: site }    = useQuery({ queryKey: ['site'],      queryFn: getSiteSettings, staleTime: 5 * 60_000 });
+  const { data: pkData }  = useQuery({ queryKey: ['passkey'],   queryFn: getMyPasskey,    enabled: isAuthed, staleTime: Infinity });
+
+  const claimMut = useMutation({
+    mutationFn: claimRewards,
+    onSuccess:  data => {
+      const t = data?.tokenId?.split('-')[0] || 'token';
+      toast.success(`Claimed ${data.amountKth} ${t}! TX: ${data.txHash?.slice(0, 12)}…`);
+      qc.invalidateQueries(['me', 'pendingRewards', 'onChainBalance']);
+    },
+    onError: err => toast.error(err?.response?.data?.error || 'Claim failed'),
+  });
+
+  const [activeTab, setActiveTab] = React.useState('torrents');
+  const [copied, setCopied] = useState(false);
+
+  // All derived values (no hooks below this point)
+  const pendingKth     = pendingData?.amountKth  || '0';
+  const pendingAmt     = pendingData?.amount      || 0;
+  const onChainBal     = balanceData?.balance     || 0;
+  const tokenId        = site?.tokenId || pendingData?.tokenId || 'KTH-000000';
+  const ticker         = tokenId.split('-')[0];
+  const seedSecs       = me?.pendingSeedSeconds || 0;
+  const seedHours      = Math.floor(seedSecs / 3600);
+  const seedMins       = Math.floor((seedSecs % 3600) / 60);
+  const seedTime       = seedHours > 0 ? `${seedHours}h ${seedMins}m` : `${seedMins}m`;
+  const totalSecs      = me?.totalSeedSeconds || 0;
+  const totalHours     = Math.floor(totalSecs / 3600);
+  const totalMins      = Math.floor((totalSecs % 3600) / 60);
+  const totalSeedTime  = totalHours > 0 ? `${totalHours}h ${totalMins}m` : `${totalMins}m`;
+  const rewardsOn      = site?.rewardsEnabled !== false;
+  const tokenPrecision = site?.tokenPrecision ?? 6;
+  const passkey        = pkData?.passkey || '';
+  const announceUrl    = passkey ? `${window.location.origin}/announce?passkey=${passkey}` : '';
+
+  const copyUrl = useCallback(() => {
+    if (!announceUrl) return;
+    navigator.clipboard.writeText(announceUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [announceUrl]);
+
+  if (!isAuthed) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h1 className="text-2xl font-bold text-white mb-2">Connect your wallet</h1>
+        <p className="text-gray-400">Sign in with your Klever Wallet to access your dashboard.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+      {/* ── Header ────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-sm text-gray-400 font-mono mt-0.5">{shortenKlvAddress(walletAddress)}</p>
+        </div>
+        <Link to="/submit">
+          <Button size="sm" variant="primary">
+            <Upload size={14} /> Upload Torrent
+          </Button>
+        </Link>
+      </div>
+
+      {/* ── Stats cards ───────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+        {[
+          rewardsOn && { label: 'Total Earned',   value: `${formatKth(me?.total_rewards, tokenPrecision)} ${ticker}`, icon: <Coins size={18} />,      color: 'text-accent-400', bg: 'bg-accent-500/10' },
+          rewardsOn && { label: 'Wallet Balance', value: `${formatKth(onChainBal, tokenPrecision)} ${ticker}`,        icon: <TrendingUp size={18} />, color: 'text-green-400',  bg: 'bg-green-500/10' },
+                        { label: 'My Uploads',    value: me?.torrents?.length ?? 0,                   icon: <Upload size={18} />,     color: 'text-brand-400',  bg: 'bg-brand-500/10' },
+          rewardsOn && { label: 'Pending Seed',   value: seedTime,      icon: <Clock size={18} />,        color: 'text-amber-400',  bg: 'bg-amber-500/10' },
+          rewardsOn && { label: 'Total Seeded',  value: totalSeedTime, icon: <Clock size={18} />,        color: 'text-gray-400',   bg: 'bg-white/5' },
+        ].filter(Boolean).map(s => (
+          <div key={s.label} className="bg-surface-50 border border-white/8 rounded-xl p-4">
+            <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center ${s.color} mb-3`}>
+              {s.icon}
+            </div>
+            <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Personalized Tracker URL ──────────────────── */}
+      {rewardsOn && announceUrl && (
+        <div className="bg-surface-50 border border-brand-500/20 rounded-2xl p-5">
+          <h2 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
+            🔗 Your personal tracker URL
+          </h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Add this URL as a tracker in your BitTorrent client for every torrent you seed.
+            Your seeding time will be tracked automatically and rewards will accumulate.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 px-3 py-1.5 bg-surface-100 border border-white/10 rounded-lg text-xs text-brand-300 font-mono truncate">
+              {announceUrl}
+            </code>
+            <button
+              onClick={copyUrl}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-gray-300 hover:text-white hover:border-white/30 transition-colors"
+            >
+              {copied ? <><Check size={12} className="text-green-400" /> Copied</> : <><Copy size={12} /> Copy</>}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reward Centre ─────────────────────────────── */}
+      {rewardsOn && <div className="bg-surface-50 border border-white/8 rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Coins size={18} className="text-accent-400" /> Reward Centre
+        </h2>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <div>
+            <p className="text-3xl font-bold text-accent-400">
+              {pendingKth} <span className="text-lg text-gray-400">{ticker}</span>
+            </p>
+            <p className="text-sm text-gray-500 mt-0.5">Pending rewards (unclaimed)</p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="accent"
+              loading={claimMut.isPending}
+              disabled={pendingAmt === 0}
+              onClick={() => claimMut.mutate()}
+            >
+              Claim to Klever Wallet
+            </Button>
+            <p className="text-xs text-gray-500 text-center">
+              Tokens sent directly to <span className="font-mono">{shortenKlvAddress(walletAddress)}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Token info */}
+        <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3 text-xs text-gray-500">
+          <span>Token: <span className="font-mono text-gray-300">{tokenId}</span></span>
+          <a
+            href={`https://kleverscan.org/asset/${tokenId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-brand-400 hover:text-brand-300"
+          >
+            View on KleverScan <ExternalLink size={11} />
+          </a>
+        </div>
+
+        {/* Claim history */}
+        {me?.vouchers?.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <p className="text-xs text-gray-500 mb-2">Recent claims</p>
+            <div className="space-y-1">
+              {me.vouchers.slice(0, 5).map(v => (
+                <div key={v.id} className="flex items-center justify-between text-xs py-1">
+                  <span className="text-gray-400">{new Date(v.created_at).toLocaleDateString()}</span>
+                  <span className="font-mono text-gray-300">
+                    {formatKth(v.amount, v.token_precision ?? tokenPrecision)} {(v.token_id ?? tokenId).split('-')[0]}
+                  </span>
+                  {v.tx_hash && (
+                    <a
+                      href={`https://kleverscan.org/transaction/${v.tx_hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-400 hover:text-brand-300 flex items-center gap-1"
+                    >
+                      {v.tx_hash.slice(0, 8)}… <ExternalLink size={10} />
+                    </a>
+                  )}
+                  <Badge color="green">{v.status}</Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>}
+
+      {/* ── Tabs ──────────────────────────────────────── */}
+      <div>
+        <div className="flex gap-1 mb-4 bg-surface-50 border border-white/8 rounded-xl p-1 w-fit">
+          {[
+            { id: 'torrents',  label: `My Torrents (${me?.torrents?.length || 0})` },
+            { id: 'bookmarks', label: `Bookmarks (${me?.bookmarks?.length || 0})` },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'torrents' && (
+          <div className="space-y-3">
+            {me?.torrents?.length === 0
+              ? <p className="text-gray-500 text-sm py-8 text-center">No uploads yet. <Link to="/submit" className="text-brand-400 hover:underline">Upload your first torrent</Link></p>
+              : me?.torrents?.map(t => <TorrentCard key={t.id} torrent={t} />)
+            }
+          </div>
+        )}
+
+        {activeTab === 'bookmarks' && (
+          <div className="space-y-3">
+            {me?.bookmarks?.length === 0
+              ? <p className="text-gray-500 text-sm py-8 text-center">No bookmarks yet.</p>
+              : me?.bookmarks?.map(t => <TorrentCard key={t.id} torrent={t} />)
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// React is needed for useState
+import React from 'react';

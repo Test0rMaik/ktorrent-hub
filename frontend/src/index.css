@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Surface colour tokens (RGB triplets for Tailwind opacity support) ── */
+  :root {
+    color-scheme: dark;
+    --surface:     15 15 19;    /* #0f0f13 */
+    --surface-50:  26 26 34;    /* #1a1a22 */
+    --surface-100: 30 30 40;    /* #1e1e28 */
+    --surface-200: 37 37 48;    /* #252530 */
+    --surface-300: 46 46 58;    /* #2e2e3a */
+  }
+
+  /* ── Light mode: flip surface tokens + text/border overrides ── */
+  .light {
+    color-scheme: light;
+    --surface:     255 255 255; /* white    */
+    --surface-50:  249 250 251; /* gray-50  */
+    --surface-100: 243 244 246; /* gray-100 */
+    --surface-200: 229 231 235; /* gray-200 */
+    --surface-300: 209 213 219; /* gray-300 */
+  }
+
+  .light body { @apply bg-gray-100 text-gray-900; }
+
+  .light .text-white    { @apply text-gray-900; }
+  .light .text-gray-300 { @apply text-gray-700; }
+  .light .text-gray-400 { @apply text-gray-700; }
+
+  /* Semi-transparent white → visible light grays */
+  .light .bg-white\/5  { @apply bg-gray-100; }
+  .light .bg-white\/8  { @apply bg-gray-100; }
+  .light .bg-white\/10 { @apply bg-gray-200; }
+
+  /* Header nav links */
+  .light header .text-gray-400           { @apply text-gray-700; }
+  .light header .hover\:text-white:hover { @apply text-gray-900; }
+
+  .light .border-white\/8  { @apply border-gray-200; }
+  .light .border-white\/10 { @apply border-gray-200; }
+  .light .border-white\/20 { @apply border-gray-300; }
+
+  /* Scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+  }
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 9999px; }
+}
+
+@layer utilities {
+  .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+  .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+}

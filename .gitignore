@@ -1,0 +1,66 @@
+# ========================
+# Secrets & Environment
+# ========================
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# ========================
+# Dependencies
+# ========================
+node_modules/
+*/node_modules/
+
+# ========================
+# Build outputs
+# ========================
+dist/
+build/
+frontend/dist/
+*.tsbuildinfo
+
+# ========================
+# Database & runtime data
+# ========================
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+data/
+
+# ========================
+# Uploaded torrent files
+# ========================
+backend/uploads/
+
+# ========================
+# Logs
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================
+# Claude Code memory
+# ========================
+memory/
+.claude/
+
+# ========================
+# OS & editor
+# ========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
+.vscode/launch.json
+
+# ========================
+# Coverage & test output
+# ========================
+coverage/
+.nyc_output/
