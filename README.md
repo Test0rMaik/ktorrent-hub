@@ -57,8 +57,8 @@ KleverTorrentHub uses **Ed25519 challenge-response** authentication:
 ### 1. Clone
 
 ```bash
-git clone https://github.com/your-org/klever-torrent-hub.git
-cd klever-torrent-hub
+git clone https://github.com/Test0rMaik/ktorrent-hub.git
+cd ktorrent-hub
 ```
 
 ### 2. Configure
