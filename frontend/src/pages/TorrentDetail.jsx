@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 
 export default function TorrentDetail() {
   const { id }         = useParams();
-  const { isAuthed }   = useAuth();
+  const { isAuthed, token } = useAuth();
   const qc             = useQueryClient();
   const [comment, setComment] = useState('');
   const [filesOpen, setFilesOpen] = useState(false);
@@ -45,7 +45,25 @@ export default function TorrentDetail() {
   if (!t) return <div className="text-center py-20 text-gray-400">Torrent not found</div>;
 
   const magnetUrl = t.magnet || `magnet:?xt=urn:btih:${t.info_hash}&dn=${encodeURIComponent(t.name)}`;
-  const torrentDownloadUrl = t.torrent_file ? `/uploads/${t.torrent_file}` : null;
+  const torrentDownloadUrl = t.torrent_file ? `/api/torrents/${t.id}/download` : null;
+
+  const downloadTorrent = async () => {
+    if (!torrentDownloadUrl) return;
+    try {
+      const res = await fetch(torrentDownloadUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { toast.error('Download failed'); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      const cd   = res.headers.get('Content-Disposition');
+      a.download = cd?.match(/filename="([^"]+)"/)?.[1] ?? `${t.name}.torrent`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error('Download failed'); }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -109,11 +127,9 @@ export default function TorrentDetail() {
             </Button>
           </a>
           {torrentDownloadUrl && (
-            <a href={torrentDownloadUrl} download>
-              <Button variant="secondary" size="md">
-                <Download size={16} /> Download .torrent
-              </Button>
-            </a>
+            <Button variant="secondary" size="md" onClick={downloadTorrent}>
+              <Download size={16} /> Download .torrent
+            </Button>
           )}
         </div>
 

@@ -262,7 +262,8 @@ function SettingsTab({ ticker, tokenPrecision = 6 }) {
 
       {/* Reward rate */}
       <div className="bg-surface-50 border border-white/8 rounded-2xl p-6 space-y-3">
-        <h2 className="font-semibold text-white">Reward Rate</h2>
+        <h2 className="font-semibold text-white">Uploader Reward Rate</h2>
+        <p className="text-xs text-gray-500">Earned by users who upload and seed their own torrents.</p>
         <div className="flex items-center gap-3">
           <input
             type="number"
@@ -276,6 +277,49 @@ function SettingsTab({ ticker, tokenPrecision = 6 }) {
             = {((form.reward_rate_per_hour ?? 0) / (10 ** tokenPrecision)).toFixed(tokenPrecision > 0 ? 2 : 0)} {ticker}/h
           </span>
         </div>
+      </div>
+
+      {/* User seeding rewards */}
+      <div className="bg-surface-50 border border-white/8 rounded-2xl p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-white">User Seeding Rewards</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            When enabled, users who download and seed torrents they did not upload also earn rewards at a
+            separate (typically lower) rate. Users must add their personal tracker URL to their BitTorrent
+            client — it is shown on their Dashboard.
+          </p>
+        </div>
+
+        <label className="flex items-start justify-between gap-4 cursor-pointer">
+          <div>
+            <p className="text-sm text-white">Enable user seeding rewards</p>
+            <p className="text-xs text-gray-500">Non-uploaders earn tokens for seeding after their download completes</p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={!!form.user_seeding_rewards_enabled}
+            onClick={() => setForm(f => ({ ...f, user_seeding_rewards_enabled: !f.user_seeding_rewards_enabled }))}
+            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${form.user_seeding_rewards_enabled ? 'bg-brand-600' : 'bg-white/10'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${form.user_seeding_rewards_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </label>
+
+        {form.user_seeding_rewards_enabled && (
+          <div className="flex items-center gap-3 pt-1">
+            <input
+              type="number"
+              min="0"
+              value={form.user_seeding_rate_per_hour ?? 1000000}
+              onChange={e => setForm(f => ({ ...f, user_seeding_rate_per_hour: parseInt(e.target.value, 10) || 0 }))}
+              className="w-40 px-3 py-2 bg-surface-100 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <span className="text-sm text-gray-400">minimal units / hour</span>
+            <span className="text-xs text-gray-600">
+              = {((form.user_seeding_rate_per_hour ?? 0) / (10 ** tokenPrecision)).toFixed(tokenPrecision > 0 ? 2 : 0)} {ticker}/h
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Homepage counts */}

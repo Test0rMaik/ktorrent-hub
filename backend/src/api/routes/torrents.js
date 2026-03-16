@@ -253,6 +253,50 @@ router.post('/', requireAuth, uploadLimiter, upload.single('torrentFile'), async
   }
 });
 
+// ── GET /api/torrents/:id/download ─────────────────────────
+// Serves the .torrent file with the announce URL rewritten to embed the
+// requesting user's passkey so their seeding is auto-tracked for rewards.
+// Uses raw byte surgery instead of bencode decode+encode to avoid corrupting
+// binary fields (e.g. 'piece layers' in BitTorrent v2 / hybrid torrents).
+// Unauthenticated users receive the original file unchanged.
+router.get('/:id/download', optionalAuth, async (req, res) => {
+  const db = getDb();
+  const torrent = db.queryOne(
+    `SELECT id, name, torrent_file FROM torrents WHERE id = ? AND status = 'active'`,
+    [req.params.id],
+  );
+  if (!torrent?.torrent_file) return res.status(404).json({ error: 'Torrent file not found' });
+
+  const filePath = resolve(config.upload.dir, torrent.torrent_file);
+  if (!existsSync(filePath)) return res.status(404).json({ error: 'Torrent file not found on disk' });
+
+  const { readFileSync } = await import('fs');
+  let buf = readFileSync(filePath);
+
+  if (req.user) {
+    // Fetch or generate the user's passkey
+    let { passkey } = db.queryOne(`SELECT passkey FROM users WHERE id = ?`, [req.user.id]) || {};
+    if (!passkey) {
+      passkey = randomUUID().replace(/-/g, '');
+      db.run(`UPDATE users SET passkey = ? WHERE id = ?`, [passkey, req.user.id]);
+    }
+
+    const announceUrl = `${req.protocol}://${req.get('host')}/announce?passkey=${passkey}`;
+
+    // Replace (or insert) the announce string and rewrite announce-list.
+    // Raw byte surgery preserves every other field byte-for-byte — critical
+    // for BitTorrent v2 torrents whose 'piece layers' contains raw SHA-256 hashes.
+    buf = bencodeSetString(buf, 'announce', announceUrl);
+    buf = bencodeSetValue(buf, 'announce-list',
+      Buffer.from(`ll${Buffer.byteLength(announceUrl)}:${announceUrl}ee`));
+  }
+
+  const filename = `${torrent.name.replace(/[^a-zA-Z0-9._-]/g, '_')}.torrent`;
+  res.setHeader('Content-Type', 'application/x-bittorrent');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buf);
+});
+
 // ── PATCH /api/torrents/:id ─────────────────────────────────
 router.patch('/:id', requireAuth, (req, res) => {
   const db = getDb();
@@ -333,6 +377,58 @@ router.post('/:id/bookmark', requireAuth, (req, res) => {
     res.json({ bookmarked: true });
   }
 });
+
+// ── Bencode byte-surgery helpers ────────────────────────────
+// Returns the index immediately after the end of the bencode value at `pos`.
+function bencodeEnd(buf, pos) {
+  const b = buf[pos];
+  if (b === 100) { // 'd'ict
+    pos++;
+    while (buf[pos] !== 101) { pos = bencodeEnd(buf, pos); pos = bencodeEnd(buf, pos); }
+    return pos + 1;
+  }
+  if (b === 108) { // 'l'ist
+    pos++;
+    while (buf[pos] !== 101) pos = bencodeEnd(buf, pos);
+    return pos + 1;
+  }
+  if (b === 105) { // 'i'nteger  ie5 → i42e
+    pos++;
+    while (buf[pos] !== 101) pos++;
+    return pos + 1;
+  }
+  // Byte string: <decimal-length>:<bytes>
+  let colon = pos;
+  while (buf[colon] !== 58) colon++;
+  return colon + 1 + parseInt(buf.slice(pos, colon).toString('ascii'), 10);
+}
+
+// Replace a bencode string value for `key`.  If the key is absent it is
+// inserted right after the opening 'd' of the outer dict — safe for
+// 'announce' because 'a' sorts before all other standard torrent dict keys.
+function bencodeSetString(buf, key, newStr) {
+  const keyBytes = Buffer.from(`${key.length}:${key}`);
+  const newVal   = Buffer.from(`${Buffer.byteLength(newStr)}:${newStr}`);
+  const keyIdx   = buf.indexOf(keyBytes);
+  if (keyIdx !== -1) {
+    const valStart = keyIdx + keyBytes.length;
+    const valEnd   = bencodeEnd(buf, valStart);
+    return Buffer.concat([buf.slice(0, valStart), newVal, buf.slice(valEnd)]);
+  }
+  // Key absent — insert at start of dict (position 1, right after 'd')
+  return Buffer.concat([buf.slice(0, 1), keyBytes, newVal, buf.slice(1)]);
+}
+
+// Replace an arbitrary bencode value for `key` with raw `newValueBytes`.
+// If the key is absent the buffer is returned unchanged.
+function bencodeSetValue(buf, key, newValueBytes) {
+  const keyBytes = Buffer.from(`${key.length}:${key}`);
+  const keyIdx   = buf.indexOf(keyBytes);
+  if (keyIdx === -1) return buf;
+  const valStart = keyIdx + keyBytes.length;
+  const valEnd   = bencodeEnd(buf, valStart);
+  return Buffer.concat([buf.slice(0, valStart), newValueBytes, buf.slice(valEnd)]);
+}
 
 // ── Helpers ─────────────────────────────────────────────────
 function formatTorrent(t) {

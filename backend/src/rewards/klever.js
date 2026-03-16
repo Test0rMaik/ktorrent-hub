@@ -57,7 +57,7 @@ export async function kleverMintKth(recipientAddress, amount) {
         type:    TransactionType.Transfer,
         payload: isNativeKlv
           ? { amount, receiver: recipientAddress }
-          : { amount, assetId: config.rewards.tokenId, receiver: recipientAddress },
+          : { amount, kda: config.rewards.tokenId, receiver: recipientAddress },
       };
 
   let tx;

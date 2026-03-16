@@ -39,6 +39,8 @@ router.patch('/settings', (req, res) => {
   const allowed = [
     'enabled_categories',
     'reward_rate_per_hour',
+    'user_seeding_rewards_enabled',
+    'user_seeding_rate_per_hour',
     'require_invite',
     'admin_only_uploads',
     'show_features_section',
@@ -77,14 +79,14 @@ router.patch('/settings', (req, res) => {
       if (value.length === 0) { errors.push('At least one category must be enabled'); continue; }
     }
 
-    if (key === 'reward_rate_per_hour' || key === 'home_latest_count' || key === 'home_hot_count') {
+    if (['reward_rate_per_hour', 'user_seeding_rate_per_hour', 'home_latest_count', 'home_hot_count'].includes(key)) {
       const n = parseInt(value, 10);
-      if (isNaN(n) || n < 1) { errors.push(`${key} must be a positive integer`); continue; }
+      if (isNaN(n) || n < 0) { errors.push(`${key} must be a non-negative integer`); continue; }
       setSetting(key, n);
       continue;
     }
 
-    if (key === 'require_invite' || key === 'admin_only_uploads' || key === 'show_features_section' || key === 'show_hero_section' || key === 'rewards_enabled') {
+    if (['require_invite', 'admin_only_uploads', 'show_features_section', 'show_hero_section', 'rewards_enabled', 'user_seeding_rewards_enabled'].includes(key)) {
       setSetting(key, Boolean(value));
       continue;
     }

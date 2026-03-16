@@ -64,21 +64,44 @@ export function endSeedingSession({ infoHash, peerId }) {
 }
 
 /**
- * Calculate pending (uncredited) reward in KTH minimal units (6 decimals).
- * Returns a number.
+ * Calculate pending (uncredited) reward in KTH minimal units.
+ *
+ * Two tiers:
+ *   - Uploader tier  : sessions on torrents the user uploaded → reward_rate_per_hour
+ *   - Seeder tier    : sessions on torrents uploaded by others → user_seeding_rate_per_hour
+ *                      (only counted when user_seeding_rewards_enabled = true)
  */
 export function calculatePendingRewards(userId) {
-  const db  = getDb();
-  const row = db.queryOne(
-    `SELECT COALESCE(SUM(seed_seconds - rewarded_seconds), 0) AS pending_secs
-     FROM seeding_sessions
-     WHERE user_id = ? AND seed_seconds > rewarded_seconds`,
+  const db = getDb();
+
+  // ── Uploader sessions ──────────────────────────────────────
+  const uploaderRate = getSetting('reward_rate_per_hour') ?? config.rewards.ratePerHour;
+  const uploaderRow  = db.queryOne(
+    `SELECT COALESCE(SUM(s.seed_seconds - s.rewarded_seconds), 0) AS pending_secs
+     FROM seeding_sessions s
+     JOIN torrents t ON t.id = s.torrent_id
+     WHERE s.user_id = ? AND s.seed_seconds > s.rewarded_seconds AND t.uploader_id = s.user_id`,
     [userId],
   );
-  const pendingSecs  = Number(row?.pending_secs ?? 0);
-  const pendingHours = pendingSecs / 3600;
-  const ratePerHour = getSetting('reward_rate_per_hour') ?? config.rewards.ratePerHour;
-  return Math.floor(pendingHours * ratePerHour);
+  const uploaderAmount = Math.floor((Number(uploaderRow?.pending_secs ?? 0) / 3600) * uploaderRate);
+
+  // ── Non-uploader seeder sessions ───────────────────────────
+  const userSeedingEnabled = getSetting('user_seeding_rewards_enabled') ?? false;
+  if (!userSeedingEnabled) return uploaderAmount;
+
+  const userRate   = getSetting('user_seeding_rate_per_hour') ?? 0;
+  if (!userRate)   return uploaderAmount;
+
+  const seederRow  = db.queryOne(
+    `SELECT COALESCE(SUM(s.seed_seconds - s.rewarded_seconds), 0) AS pending_secs
+     FROM seeding_sessions s
+     JOIN torrents t ON t.id = s.torrent_id
+     WHERE s.user_id = ? AND s.seed_seconds > s.rewarded_seconds AND t.uploader_id != s.user_id`,
+    [userId],
+  );
+  const seederAmount = Math.floor((Number(seederRow?.pending_secs ?? 0) / 3600) * userRate);
+
+  return uploaderAmount + seederAmount;
 }
 
 /**
@@ -95,12 +118,25 @@ export async function mintRewardsToUser(userId) {
 
   const txHash = await kleverMintKth(user.wallet, amount);
 
-  // Mark seeding seconds as rewarded
+  // Mark uploader sessions as rewarded (always paid out)
   db.run(
     `UPDATE seeding_sessions SET rewarded_seconds = seed_seconds
-     WHERE user_id = ? AND seed_seconds > rewarded_seconds`,
-    [userId],
+     WHERE user_id = ? AND seed_seconds > rewarded_seconds
+     AND torrent_id IN (SELECT id FROM torrents WHERE uploader_id = ?)`,
+    [userId, userId],
   );
+
+  // Mark non-uploader seeder sessions as rewarded only when that tier was active.
+  // Leaving them un-marked preserves the accrued time if the admin enables the
+  // feature later — the user won't lose hours that hadn't been paid out yet.
+  if (getSetting('user_seeding_rewards_enabled')) {
+    db.run(
+      `UPDATE seeding_sessions SET rewarded_seconds = seed_seconds
+       WHERE user_id = ? AND seed_seconds > rewarded_seconds
+       AND torrent_id NOT IN (SELECT id FROM torrents WHERE uploader_id = ?)`,
+      [userId, userId],
+    );
+  }
 
   // Record the claim
   const id         = randomUUID();

@@ -4,7 +4,7 @@ import { upsertPeer, removePeer, getPeers, getStats } from './peerStore.js';
 import { getDb } from '../db/index.js';
 import { trackSeedingActivity } from '../rewards/tracker.js';
 
-const DEFAULT_INTERVAL = 1800; // seconds between announces
+const DEFAULT_INTERVAL = 300;  // seconds between announces (5 min)
 const MIN_INTERVAL    = 60;
 
 /**

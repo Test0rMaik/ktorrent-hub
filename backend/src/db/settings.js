@@ -17,8 +17,10 @@ import { ALL_CATEGORIES, DEFAULT_ENABLED_CATEGORIES } from '../config/index.js';
  */
 
 const DEFAULTS = {
-  enabled_categories:   DEFAULT_ENABLED_CATEGORIES,
-  reward_rate_per_hour: 10_000_000,   // 10 KTH
+  enabled_categories:          DEFAULT_ENABLED_CATEGORIES,
+  reward_rate_per_hour:        10_000_000,   // 10 KTH — uploader / primary seeder rate
+  user_seeding_rewards_enabled: false,        // off by default; admin-only toggle
+  user_seeding_rate_per_hour:  1_000_000,    // 1 KTH — non-uploader seeder rate (when enabled)
   require_invite:       false,
   admin_only_uploads:   false,
   site_name:            'KleverTorrentHub',
