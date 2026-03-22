@@ -34,6 +34,9 @@ const DEFAULTS = {
   rewards_enabled:       true,
   home_latest_count:     8,
   home_hot_count:        8,
+  // ── Modules ──
+  enabled_extensions:    [],       // array of extension IDs
+  active_theme:          'default', // theme ID from modules/themes/
 };
 
 export function getSetting(key) {

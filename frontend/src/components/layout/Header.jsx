@@ -7,12 +7,12 @@ import { WalletButton } from '../wallet/WalletButton';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { getSiteSettings } from '../../lib/api';
 
-const NAV = [
+const CORE_NAV = [
   { to: '/',        label: 'Home'   },
   { to: '/browse',  label: 'Browse' },
 ];
 
-export function Header() {
+export function Header({ enabledExtensions = [] }) {
   const location             = useLocation();
   const navigate             = useNavigate();
   const [query, setQuery]    = useState('');
@@ -20,6 +20,12 @@ export function Header() {
 
   const siteName = site?.siteName || 'KleverTorrentHub';
   const logoUrl  = site?.logoUrl  || null;
+
+  // Build nav from core + enabled extension nav items
+  const NAV = [
+    ...CORE_NAV,
+    ...enabledExtensions.flatMap(ext => ext.navItems || []),
+  ];
 
   const handleSearch = e => {
     e.preventDefault();
@@ -47,7 +53,7 @@ export function Header() {
                 key={to}
                 to={to}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  location.pathname === to
+                  location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
                     ? 'text-white bg-white/10'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
@@ -65,7 +71,7 @@ export function Header() {
                 type="search"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search torrents…"
+                placeholder="Search torrents..."
                 className="w-full pl-9 pr-4 py-1.5 bg-surface-100 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               />
             </div>

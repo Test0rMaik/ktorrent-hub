@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Coins, Upload, Clock, TrendingUp, ExternalLink, Copy, Check } from 'lucide-react';
+import { Coins, Upload, Clock, TrendingUp, ExternalLink, Copy, Check, UserPlus, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getMe, getPendingRewards, claimRewards, getOnChainBalance, getSiteSettings, getMyPasskey } from '../lib/api';
+import { getMe, getPendingRewards, claimRewards, getOnChainBalance, getSiteSettings, getMyPasskey, api } from '../lib/api';
 import { formatKth, shortenKlvAddress } from '../lib/klever';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -216,6 +216,9 @@ export default function Dashboard() {
         )}
       </div>}
 
+      {/* ── Invite Codes (if extension enabled) ──────── */}
+      <InviteSection isAuthed={isAuthed} enabledExtensions={site?.enabledExtensions || []} />
+
       {/* ── Tabs ──────────────────────────────────────── */}
       <div>
         <div className="flex gap-1 mb-4 bg-surface-50 border border-white/8 rounded-xl p-1 w-fit">
@@ -251,6 +254,110 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Invite Codes Section ─────────────────────────────────────
+const getMyInvites = () => api.get('/ext/invite-system/my-invites').then(r => r.data);
+const requestMoreInvites = () => api.post('/ext/invite-system/request').then(r => r.data);
+
+function InviteSection({ isAuthed, enabledExtensions }) {
+  const qc = useQueryClient();
+  const isEnabled = enabledExtensions.includes('invite-system');
+
+  const { data } = useQuery({
+    queryKey: ['my-invites'],
+    queryFn: getMyInvites,
+    staleTime: 60_000,
+    enabled: isAuthed && isEnabled,
+    retry: false,
+  });
+
+  const requestMut = useMutation({
+    mutationFn: requestMoreInvites,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-invites'] });
+      toast.success('Request submitted — waiting for admin approval');
+    },
+    onError: (err) => toast.error(err?.response?.data?.error || 'Request failed'),
+  });
+
+  if (!isEnabled || !data?.enabled) return null;
+
+  const copyCode = code => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(code);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    toast.success('Copied to clipboard');
+  };
+
+  const allUsed = data.available === 0 && data.total > 0;
+
+  return (
+    <div className="bg-surface-50 border border-white/8 rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <UserPlus size={18} className="text-brand-400" /> My Invite Codes
+        </h2>
+        <Link to="/invites" className="text-xs text-brand-400 hover:text-brand-300">
+          View all
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="text-center">
+          <div className="text-xl font-bold text-white">{data.total}</div>
+          <div className="text-xs text-gray-500">Total</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl font-bold text-green-400">{data.available}</div>
+          <div className="text-xs text-gray-500">Available</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl font-bold text-gray-500">{data.used}</div>
+          <div className="text-xs text-gray-500">Used</div>
+        </div>
+      </div>
+
+      {/* Show available codes */}
+      <div className="space-y-1.5">
+        {data.invites?.filter(i => !i.used_by_wallet).slice(0, 5).map(inv => (
+          <div key={inv.code} className="flex items-center justify-between px-3 py-2 bg-surface-100 rounded-lg">
+            <span className="font-mono text-sm text-white">{inv.code}</span>
+            <button
+              onClick={() => copyCode(inv.code)}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-brand-400 transition-colors"
+            >
+              <Copy size={12} /> Copy
+            </button>
+          </div>
+        ))}
+        {data.invites?.filter(i => i.used_by_wallet).length > 0 && (
+          <p className="text-xs text-gray-600 pt-1">
+            + {data.used} used code{data.used !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+
+      {/* Request more */}
+      {allUsed && (
+        <div className="mt-4 pt-4 border-t border-white/10 text-center">
+          <p className="text-xs text-gray-500 mb-2">All invite codes have been used.</p>
+          <Button size="sm" variant="outline" loading={requestMut.isPending} onClick={() => requestMut.mutate()}>
+            Request More Invites
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

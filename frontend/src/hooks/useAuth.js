@@ -18,8 +18,10 @@ export function useAuth() {
 
   /**
    * Connect Klever wallet and sign in via Ed25519 challenge.
+   * If an invite code is required (new user + require_invite enabled),
+   * the caller can pass inviteCode or the function will prompt for one.
    */
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (inviteCode) => {
     try {
       // 1. Connect wallet (prompts extension if needed)
       const account = await connectKleverWallet();
@@ -32,17 +34,29 @@ export function useAuth() {
       const signature = await signMessage(message);
 
       // 4. Verify on the backend — get session token
-      const { token: sessionToken, user: userData } = await verifyAuth({
-        wallet: address,
-        nonce,
-        signature,
-      });
+      const payload = { wallet: address, nonce, signature };
+      if (inviteCode) payload.invite_code = inviteCode;
+
+      const { token: sessionToken, user: userData } = await verifyAuth(payload);
 
       setAuth(sessionToken, userData);
       toast.success('Signed in with Klever Wallet');
+      return { success: true };
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.message || 'Sign-in failed';
+      const errorCode = err?.response?.data?.error;
+      const msg       = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Sign-in failed';
+
+      // Invite code required — signal to the UI to show the invite prompt
+      if (errorCode === 'invite_required') {
+        return { success: false, inviteRequired: true };
+      }
+      if (errorCode === 'invalid_invite' || errorCode === 'invite_used') {
+        toast.error(msg);
+        return { success: false, inviteRequired: true, inviteError: msg };
+      }
+
       toast.error(msg);
+      return { success: false };
     }
   }, [setAuth]);
 

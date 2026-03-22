@@ -24,6 +24,8 @@ router.get('/site', (req, res) => {
     tokenPrecision:   config.rewards.tokenPrecision,
     homeLatestCount:  getSetting('home_latest_count') ?? 8,
     homeHotCount:     getSetting('home_hot_count')    ?? 8,
+    enabledExtensions: getSetting('enabled_extensions') ?? [],
+    activeTheme:       getSetting('active_theme') ?? 'default',
   });
 });
 

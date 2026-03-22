@@ -11,6 +11,15 @@
     --surface-100: 30 30 40;    /* #1e1e28 */
     --surface-200: 37 37 48;    /* #252530 */
     --surface-300: 46 46 58;    /* #2e2e3a */
+
+    /* Brand & accent — overridden by themes */
+    --brand-400: 56 189 248;    /* #38bdf8 */
+    --brand-500: 14 165 233;    /* #0ea5e9 */
+    --brand-600: 2 132 199;     /* #0284c7 */
+    --brand-700: 3 105 161;     /* #0369a1 */
+    --accent-400: 167 139 250;  /* #a78bfa */
+    --accent-500: 139 92 246;   /* #8b5cf6 */
+    --accent-600: 124 58 237;   /* #7c3aed */
   }
 
   /* ── Light mode: flip surface tokens + text/border overrides ── */

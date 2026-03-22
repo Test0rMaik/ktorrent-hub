@@ -67,6 +67,10 @@ export const adminBanUser          = (wallet, reason) => api.post(`/admin/users/
 export const adminUnbanUser        = wallet       => api.delete(`/admin/users/${wallet}/ban`).then(r => r.data);
 export const adminGetBans          = ()           => api.get('/admin/bans').then(r => r.data);
 
+// ── Extensions (generic) ─────────────────────────────────────
+// Extension-specific API calls live inside each extension's frontend.
+// This is a convenience for the admin panel to manage extension state.
+
 // ── Helpers ─────────────────────────────────────────────────
 export function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';

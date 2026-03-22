@@ -53,6 +53,8 @@ router.patch('/settings', (req, res) => {
     'announcement',
     'home_latest_count',
     'home_hot_count',
+    'enabled_extensions',
+    'active_theme',
   ];
 
   // Max lengths for freeform text settings
@@ -83,6 +85,18 @@ router.patch('/settings', (req, res) => {
       const n = parseInt(value, 10);
       if (isNaN(n) || n < 0) { errors.push(`${key} must be a non-negative integer`); continue; }
       setSetting(key, n);
+      continue;
+    }
+
+    if (key === 'enabled_extensions') {
+      if (!Array.isArray(value)) { errors.push('enabled_extensions must be an array'); continue; }
+      setSetting(key, value.map(String));
+      continue;
+    }
+
+    if (key === 'active_theme') {
+      if (typeof value !== 'string' || value.length > 50) { errors.push('active_theme must be a string (≤50 chars)'); continue; }
+      setSetting(key, value);
       continue;
     }
 

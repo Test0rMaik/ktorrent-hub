@@ -1,0 +1,9 @@
+{
+  "id": "invite-system",
+  "name": "Invite System",
+  "description": "Require invite codes for new user registration. Admins can generate and manage invite codes.",
+  "version": "1.0.0",
+  "icon": "UserPlus",
+  "hasBackend": true,
+  "hasFrontend": true
+}

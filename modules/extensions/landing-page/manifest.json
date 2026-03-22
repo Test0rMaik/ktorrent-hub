@@ -1,0 +1,9 @@
+{
+  "id": "landing-page",
+  "name": "Landing Page",
+  "description": "Show a customisable landing page with rich text before users can access the tracker. Supports headings, bold, italic, images and more.",
+  "version": "1.0.0",
+  "icon": "FileText",
+  "hasBackend": true,
+  "hasFrontend": true
+}

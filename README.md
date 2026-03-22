@@ -3,6 +3,7 @@
 > **Anonymous, decentralised BitTorrent tracker with Klever Blockchain token rewards.**
 > No email. No password. Just your Klever Wallet.
 
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-brightgreen.svg)](https://nodejs.org)
 
@@ -29,6 +30,11 @@
 | 🔖 **Bookmarks** | Save torrents to your personal list |
 | 📡 **RSS Feed** | `/api/meta/rss?category=movies` — subscribe with any torrent client |
 | 🌙 **Dark / Light theme** | System-detected default, toggle in the header |
+| 🧩 **Modular Extensions** | Plugin system for new features — enable/disable from the admin panel, no restart needed |
+| 🎨 **Themes** | Swappable colour themes via CSS custom properties — ships with Default and Cyberpunk |
+| 🎟️ **Invite System** | Extension: invite codes for registration, per-user quotas, request & approval workflow |
+| 📄 **Landing Page** | Extension: gated landing page with rich text editor (bold, italic, links, lists, images) |
+| 💬 **Forum** | Extension: discussion forum with categories, threads, pinning, locking, and moderation |
 | ⚙️ **Admin Dashboard** | Wallet-authenticated admin panel — manage categories, moderate torrents, ban users |
 | 🗄️ **SQLite default** | Zero-dependency storage — one file, no DB server needed |
 | 🐘 **PostgreSQL optional** | Drop-in swap via a single env var |
@@ -195,11 +201,40 @@ VITE_OWNER_WALLET=klv1your_wallet_address_here
 |---|---|
 | **Overview** | Site-wide stats, reward wallet balance, top uploaders, recent users |
 | **Settings** | Enable/disable categories, set reward rate, toggle invite-only, hero/feature visibility, site name / description / announcement |
+| **Modules** | Enable/disable extensions, switch colour themes, configure extension settings inline |
 | **Torrents** | Feature ★ or unfeature, set freeleech, restore or delete any torrent |
 | **Users** | Search users, ban by wallet (with optional reason) |
 | **Bans** | View all active bans, lift bans |
 
 All settings are stored in the database and take effect immediately — no server restart needed.
+
+---
+
+## 🧩 Modules — Themes & Extensions
+
+KleverTorrentHub is fully modular. Themes and extensions live in the `modules/`
+directory and are managed from the admin panel's **Modules** tab.
+
+### Built-in Themes
+
+| Theme | Description |
+|---|---|
+| **Default** | Blue brand, purple accents — the classic look |
+| **Cyberpunk** | Neon green brand, hot pink accents, deeper dark surfaces |
+
+### Built-in Extensions
+
+| Extension | What it does |
+|---|---|
+| **Invite System** | Require invite codes for new registrations. Admin generates codes or enables per-user quotas (e.g. 3 invites each). Users see their codes on the Dashboard and can request more when all are used — admin approves or denies. |
+| **Landing Page** | Show a customisable page at `/welcome` before users can access the tracker. Rich text editor with toolbar (bold, italic, underline, headings, links, images, bullet/numbered lists, quotes). Optional login gate. |
+| **Forum** | Community discussion forum. Admin creates categories (with reorder/edit). Users create threads and reply. Admin can pin, lock, and delete threads/posts. |
+
+### Creating your own
+
+Add a new theme or extension by creating a directory under `modules/themes/` or
+`modules/extensions/`. See [`docs/MODULES.md`](docs/MODULES.md) for the full
+guide — manifest format, frontend interface, backend routes, and registration.
 
 ---
 
@@ -213,7 +248,8 @@ klever-torrent-hub/
 │   │   ├── db/           # SQLite/PostgreSQL adapters + settings store
 │   │   ├── tracker/      # HTTP announce + scrape + peer store
 │   │   ├── api/          # REST routes (auth, torrents, users, rewards, admin)
-│   │   └── rewards/      # Seeding tracker + Klever token sending
+│   │   ├── rewards/      # Seeding tracker + Klever token sending
+│   │   └── extensions/   # Dynamic extension loader
 │   └── Dockerfile
 ├── frontend/             # React 18 + Vite + TailwindCSS
 │   ├── src/
@@ -221,12 +257,18 @@ klever-torrent-hub/
 │   │   ├── pages/        # Home, Browse, TorrentDetail, Dashboard, Submit, Admin
 │   │   ├── hooks/        # useAuth, useAdmin
 │   │   ├── store/        # Zustand (auth, theme)
-│   │   └── lib/          # API client, klever.js (wallet helpers)
+│   │   └── lib/          # API client, klever.js, extension/theme registries
 │   └── Dockerfile
+├── modules/              # Themes & extensions — user-extensible
+│   ├── themes/           # Color themes (default, cyberpunk, ...)
+│   └── extensions/       # Feature extensions (invite-system, landing-page, forum, ...)
 ├── deploy/               # Sample Nginx/Apache vhosts + systemd service file
 ├── docs/                 # Setup, API, and contributing docs
 └── docker-compose.yml
 ```
+
+> See [`docs/MODULES.md`](docs/MODULES.md) for full documentation on creating
+> themes and extensions.
 
 ---
 

@@ -4,7 +4,8 @@ import { persist } from 'zustand/middleware';
 export const useThemeStore = create(
   persist(
     (set, get) => ({
-      theme: 'dark', // 'dark' | 'light'
+      theme: 'dark',       // 'dark' | 'light'
+      colorTheme: 'default', // theme ID from modules/themes/
 
       toggleTheme() {
         const next = get().theme === 'dark' ? 'light' : 'dark';
@@ -13,10 +14,16 @@ export const useThemeStore = create(
         document.documentElement.classList.toggle('light', next === 'light');
       },
 
+      setColorTheme(id) {
+        set({ colorTheme: id });
+        document.documentElement.setAttribute('data-theme', id);
+      },
+
       initTheme() {
-        const { theme } = get();
+        const { theme, colorTheme } = get();
         document.documentElement.classList.toggle('dark',  theme === 'dark');
         document.documentElement.classList.toggle('light', theme === 'light');
+        document.documentElement.setAttribute('data-theme', colorTheme);
       },
     }),
     { name: 'kth-theme' },

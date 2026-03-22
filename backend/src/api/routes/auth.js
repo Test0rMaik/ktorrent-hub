@@ -71,12 +71,42 @@ router.post('/verify', async (req, res) => {
     // Find or create user
     let user = db.queryOne(`SELECT * FROM users WHERE wallet = ?`, [wallet.toLowerCase()]);
     if (!user) {
+      // Enforce invite code requirement for new registrations
+      // Triggered by either the legacy require_invite setting OR
+      // the invite-system extension being enabled
+      const enabledExts = getSetting('enabled_extensions') ?? [];
+      const inviteRequired = getSetting('require_invite') || enabledExts.includes('invite-system');
+      if (inviteRequired) {
+        const { invite_code } = req.body;
+        if (!invite_code) {
+          return res.status(403).json({ error: 'invite_required', message: 'An invite code is required to register' });
+        }
+        const invite = db.queryOne(
+          `SELECT code, used_by FROM invites WHERE code = ?`,
+          [invite_code.trim()],
+        );
+        if (!invite) {
+          return res.status(403).json({ error: 'invalid_invite', message: 'Invalid invite code' });
+        }
+        if (invite.used_by) {
+          return res.status(403).json({ error: 'invite_used', message: 'This invite code has already been used' });
+        }
+      }
+
       const userId = randomUUID();
       db.run(
         `INSERT INTO users (id, wallet, avatar_seed) VALUES (?, ?, ?)`,
         [userId, wallet.toLowerCase(), randomUUID()],
       );
       user = db.queryOne(`SELECT * FROM users WHERE id = ?`, [userId]);
+
+      // Mark invite code as used (if one was provided)
+      if (req.body.invite_code) {
+        db.run(
+          `UPDATE invites SET used_by = ?, used_at = datetime('now') WHERE code = ? AND used_by IS NULL`,
+          [user.id, req.body.invite_code.trim()],
+        );
+      }
     }
 
     db.run(`UPDATE users SET last_seen = datetime('now') WHERE id = ?`, [user.id]);

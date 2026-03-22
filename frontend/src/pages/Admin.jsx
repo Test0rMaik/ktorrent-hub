@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Users, LayoutGrid, BarChart3, Shield, Trash2,
   Star, Zap, Ban, CheckCircle, Search, ChevronDown, ChevronUp, Upload, X,
-  Wallet, AlertTriangle, RefreshCw,
+  Wallet, AlertTriangle, RefreshCw, Puzzle, Palette,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -16,10 +16,14 @@ import { formatKth, shortenKlvAddress } from '../lib/klever';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { useAdmin } from '../hooks/useAdmin';
+import { allExtensions } from '../lib/extensions';
+import { themes } from '../lib/themes';
+import { useThemeStore } from '../store/themeStore';
 
 const TABS = [
   { id: 'overview',   label: 'Overview',   icon: <BarChart3 size={16} /> },
   { id: 'settings',   label: 'Settings',   icon: <Settings  size={16} /> },
+  { id: 'modules',    label: 'Modules',    icon: <Puzzle    size={16} /> },
   { id: 'torrents',   label: 'Torrents',   icon: <LayoutGrid size={16} /> },
   { id: 'users',      label: 'Users',      icon: <Users     size={16} /> },
   { id: 'bans',       label: 'Bans',       icon: <Shield    size={16} /> },
@@ -65,6 +69,7 @@ export default function Admin() {
 
       {tab === 'overview'  && <OverviewTab ticker={ticker} tokenPrecision={tokenPrecision} />}
       {tab === 'settings'  && <SettingsTab ticker={ticker} tokenPrecision={tokenPrecision} />}
+      {tab === 'modules'   && <ModulesTab />}
       {tab === 'torrents'  && <TorrentsTab />}
       {tab === 'users'     && <UsersTab />}
       {tab === 'bans'      && <BansTab />}
@@ -210,7 +215,9 @@ function SettingsTab({ ticker, tokenPrecision = 6 }) {
     mutationFn: adminPatchSettings,
     onSuccess: r => {
       setForm(r.settings);
-      qc.invalidateQueries(['adminSettings', 'categories']);
+      qc.invalidateQueries({ queryKey: ['adminSettings'] });
+      qc.invalidateQueries({ queryKey: ['categories'] });
+      qc.invalidateQueries({ queryKey: ['site'] });
       toast.success('Settings saved');
     },
     onError: err => {
@@ -347,7 +354,6 @@ function SettingsTab({ ticker, tokenPrecision = 6 }) {
       <div className="bg-surface-50 border border-white/8 rounded-2xl p-6 space-y-4">
         <h2 className="font-semibold text-white">Access Control</h2>
         {[
-          { key: 'require_invite',       label: 'Require invite code to register', desc: 'New users must have a valid invite code' },
           { key: 'admin_only_uploads',   label: 'Admin-only uploads',              desc: 'Only the owner wallet can upload torrents; other users can still seed and earn rewards' },
           { key: 'show_features_section', label: 'Show features section on homepage', desc: 'Display the four feature highlight boxes (Anonymous, Earn Tokens, Tracker, Open Source)' },
           { key: 'show_hero_section',     label: 'Show hero section on homepage',     desc: 'Display the headline block at the top of the homepage' },
@@ -505,7 +511,7 @@ function TorrentsTab() {
 
   const patchMut = useMutation({
     mutationFn: ({ id, ...patch }) => adminPatchTorrent(id, patch),
-    onSuccess:  () => { qc.invalidateQueries(['adminTorrents']); toast.success('Updated'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['adminTorrents'] }); toast.success('Updated'); },
     onError:    () => toast.error('Update failed'),
   });
 
@@ -620,13 +626,13 @@ function UsersTab() {
 
   const banMut = useMutation({
     mutationFn: ({ wallet, reason }) => adminBanUser(wallet, reason),
-    onSuccess:  () => { qc.invalidateQueries(['adminUsers', 'adminStats']); toast.success('User banned'); setBanTarget(null); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['adminUsers'] }); qc.invalidateQueries({ queryKey: ['adminStats'] }); toast.success('User banned'); setBanTarget(null); },
     onError:    err => toast.error(err?.response?.data?.error || 'Ban failed'),
   });
 
   const unbanMut = useMutation({
     mutationFn: adminUnbanUser,
-    onSuccess:  () => { qc.invalidateQueries(['adminUsers']); toast.success('Ban lifted'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['adminUsers'] }); toast.success('Ban lifted'); },
   });
 
   return (
@@ -716,6 +722,134 @@ function UsersTab() {
   );
 }
 
+// ── Modules ───────────────────────────────────────────────────
+function ModulesTab() {
+  const qc = useQueryClient();
+  const { setColorTheme } = useThemeStore();
+  const { data, isLoading } = useQuery({ queryKey: ['adminSettings'], queryFn: adminGetSettings });
+  const [form, setForm] = useState(null);
+  const [expandedExt, setExpandedExt] = useState(null);
+
+  if (data && !form) setForm(data.settings);
+
+  const mut = useMutation({
+    mutationFn: adminPatchSettings,
+    onSuccess: r => {
+      setForm(r.settings);
+      // Apply theme immediately so the admin sees the change
+      if (r.settings.active_theme) setColorTheme(r.settings.active_theme);
+      qc.invalidateQueries({ queryKey: ['adminSettings'] });
+      qc.invalidateQueries({ queryKey: ['site'] });
+      toast.success('Modules saved');
+    },
+    onError: () => toast.error('Save failed'),
+  });
+
+  if (isLoading || !form) return <div className="h-40 bg-surface-50 rounded-xl animate-pulse" />;
+
+  const enabledExts = form.enabled_extensions || [];
+  const activeTheme = form.active_theme || 'default';
+
+  const toggleExtension = id => {
+    const next = enabledExts.includes(id) ? enabledExts.filter(e => e !== id) : [...enabledExts, id];
+    setForm(f => ({ ...f, enabled_extensions: next }));
+  };
+
+  return (
+    <div className="max-w-3xl space-y-6">
+
+      {/* Theme selector */}
+      <div className="bg-surface-50 border border-white/8 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Palette size={18} className="text-accent-400" />
+          <h2 className="font-semibold text-white">Color Theme</h2>
+        </div>
+        <p className="text-xs text-gray-500">Choose a color theme for the site. Themes change brand and accent colours.</p>
+        <div className="grid sm:grid-cols-3 gap-2">
+          {themes.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setForm(f => ({ ...f, active_theme: t.id }))}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all
+                ${activeTheme === t.id
+                  ? 'border-brand-500/50 bg-brand-500/10 text-white'
+                  : 'border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                }`}
+            >
+              <div>
+                <p className="text-sm font-medium">{t.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>
+              </div>
+              {activeTheme === t.id && <CheckCircle size={14} className="ml-auto text-brand-400 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Extensions */}
+      <div className="bg-surface-50 border border-white/8 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Puzzle size={18} className="text-brand-400" />
+          <h2 className="font-semibold text-white">Extensions</h2>
+        </div>
+        <p className="text-xs text-gray-500">
+          Enable or disable extensions. Changes take effect immediately after saving.
+        </p>
+
+        <div className="space-y-2">
+          {allExtensions.map(ext => {
+            const enabled = enabledExts.includes(ext.id);
+            const isExpanded = expandedExt === ext.id && enabled && ext.adminPanel;
+            return (
+              <div key={ext.id} className="border border-white/8 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white">{ext.name || ext.id}</p>
+                    {ext.description && <p className="text-xs text-gray-500 mt-0.5">{ext.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {enabled && ext.adminPanel && (
+                      <button
+                        onClick={() => setExpandedExt(isExpanded ? null : ext.id)}
+                        className="text-xs text-brand-400 hover:text-brand-300 px-2 py-1 rounded transition-colors"
+                      >
+                        {isExpanded ? 'Hide Settings' : 'Settings'}
+                      </button>
+                    )}
+                    <button
+                      role="switch"
+                      aria-checked={enabled}
+                      onClick={() => toggleExtension(ext.id)}
+                      className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${enabled ? 'bg-brand-600' : 'bg-white/10'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded admin panel */}
+                {isExpanded && (
+                  <div className="border-t border-white/8 px-4 py-4 bg-surface-100/50">
+                    <ext.adminPanel />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <Button
+        size="lg"
+        loading={mut.isPending}
+        onClick={() => mut.mutate(form)}
+      >
+        Save Modules
+      </Button>
+    </div>
+  );
+}
+
 // ── Bans ──────────────────────────────────────────────────────
 function BansTab() {
   const qc = useQueryClient();
@@ -723,7 +857,7 @@ function BansTab() {
 
   const unbanMut = useMutation({
     mutationFn: adminUnbanUser,
-    onSuccess:  () => { qc.invalidateQueries(['adminBans', 'adminUsers']); toast.success('Ban lifted'); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['adminBans'] }); qc.invalidateQueries({ queryKey: ['adminUsers'] }); toast.success('Ban lifted'); },
   });
 
   return (

@@ -16,6 +16,7 @@ import usersRouter   from './api/routes/users.js';
 import rewardsRouter from './api/routes/rewards.js';
 import metaRouter    from './api/routes/meta.js';
 import adminRouter   from './api/routes/admin.js';
+import { loadExtensions } from './extensions/loader.js';
 
 // ── Ensure required directories exist ───────────────────────
 mkdirSync(config.upload.dir, { recursive: true });
@@ -111,6 +112,9 @@ app.use('/api/users',    apiLimiter,  usersRouter);
 app.use('/api/rewards',  apiLimiter,  rewardsRouter);
 app.use('/api/meta',     apiLimiter,  metaRouter);
 app.use('/api/admin',   apiLimiter,  adminRouter);
+
+// ── Extension routes (loaded dynamically) ─────────────────
+await loadExtensions(app, apiLimiter);
 
 // Static uploads (torrent files — served so clients can download .torrent)
 app.use('/uploads', express.static(config.upload.dir, {

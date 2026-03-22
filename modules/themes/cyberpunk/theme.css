@@ -1,0 +1,16 @@
+/* Cyberpunk Theme — Neon green brand, Hot pink accent */
+:root[data-theme="cyberpunk"] {
+  --brand-400: 74 222 128;   /* #4ade80 */
+  --brand-500: 34 197 94;    /* #22c55e */
+  --brand-600: 22 163 74;    /* #16a34a */
+  --brand-700: 21 128 61;    /* #15803d */
+  --accent-400: 251 113 133; /* #fb7185 */
+  --accent-500: 244 63 94;   /* #f43f5e */
+  --accent-600: 225 29 72;   /* #e11d48 */
+
+  --surface:     10 10 16;    /* deeper black */
+  --surface-50:  18 18 28;
+  --surface-100: 22 22 35;
+  --surface-200: 30 30 45;
+  --surface-300: 40 40 58;
+}

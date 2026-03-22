@@ -1,0 +1,9 @@
+{
+  "id": "forum",
+  "name": "Forum",
+  "description": "Community discussion forum with categories, threads, and posts. Users can create topics and reply.",
+  "version": "1.0.0",
+  "icon": "MessageSquare",
+  "hasBackend": true,
+  "hasFrontend": true
+}

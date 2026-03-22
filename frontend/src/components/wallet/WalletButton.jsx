@@ -1,4 +1,4 @@
-import { Wallet, LogOut, ChevronDown, ExternalLink } from 'lucide-react';
+import { Wallet, LogOut, ChevronDown, ExternalLink, X } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAdmin } from '../../hooks/useAdmin';
@@ -10,11 +10,29 @@ export function WalletButton() {
   const { isAdmin } = useAdmin();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading]           = useState(false);
+  const [showInvitePrompt, setShowInvitePrompt] = useState(false);
+  const [inviteCode, setInviteCode]     = useState('');
+  const [inviteError, setInviteError]   = useState('');
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (code) => {
     setLoading(true);
-    await signIn();
+    const result = await signIn(code || undefined);
     setLoading(false);
+
+    if (result?.inviteRequired) {
+      setShowInvitePrompt(true);
+      if (result.inviteError) setInviteError(result.inviteError);
+    } else {
+      setShowInvitePrompt(false);
+      setInviteCode('');
+      setInviteError('');
+    }
+  };
+
+  const handleInviteSubmit = async () => {
+    if (!inviteCode.trim()) return;
+    setInviteError('');
+    await handleSignIn(inviteCode.trim());
   };
 
   // Extension not installed
@@ -37,10 +55,51 @@ export function WalletButton() {
   // Not signed in
   if (!isAuthed) {
     return (
-      <Button variant="accent" size="sm" loading={loading} onClick={handleSignIn}>
-        <Wallet size={15} />
-        Connect Wallet
-      </Button>
+      <>
+        <Button variant="accent" size="sm" loading={loading} onClick={() => handleSignIn()}>
+          <Wallet size={15} />
+          Connect Wallet
+        </Button>
+
+        {/* Invite code modal */}
+        {showInvitePrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-surface-100 border border-white/10 rounded-2xl p-6 w-full max-w-sm space-y-4 animate-slide-up">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-white">Invite Code Required</h3>
+                <button
+                  onClick={() => { setShowInvitePrompt(false); setInviteError(''); }}
+                  className="p-1 text-gray-500 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-400">
+                This tracker requires an invite code to register. Enter your code below.
+              </p>
+              <input
+                value={inviteCode}
+                onChange={e => { setInviteCode(e.target.value); setInviteError(''); }}
+                placeholder="Enter invite code"
+                className="w-full px-3 py-2 bg-surface-200 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                onKeyDown={e => { if (e.key === 'Enter') handleInviteSubmit(); }}
+                autoFocus
+              />
+              {inviteError && (
+                <p className="text-xs text-red-400">{inviteError}</p>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => { setShowInvitePrompt(false); setInviteError(''); }}>
+                  Cancel
+                </Button>
+                <Button size="sm" loading={loading} onClick={handleInviteSubmit} disabled={!inviteCode.trim()}>
+                  Submit & Sign In
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
